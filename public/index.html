@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sound Compare</title>
+<style>
+  :root {
+    --bg: #0b0b0c;
+    --panel: #141416;
+    --line: #2a2a2e;
+    --text: #e4e4e7;
+    --muted: #9b9ba3;
+    --input: #d4d4d8;
+    --a: #60a5fa;
+    --b: #f59e0b;
+    --good: #86efac;
+    --warn: #fcd34d;
+    --bad: #fca5a5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans Thai", sans-serif;
+  }
+  header {
+    border-bottom: 1px solid var(--line); padding: 12px 24px; font-weight: 700;
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  }
+  .lang button {
+    margin: 0 0 0 6px; padding: 4px 12px; font-size: 13px; background: transparent;
+    color: var(--muted); border: 1px solid var(--line); display: inline-block;
+  }
+  .lang button[aria-pressed=true] { background: var(--text); color: var(--bg); }
+  main { max-width: 1040px; margin: 0 auto; padding: 48px 16px 32px; }
+  h1 { font-size: clamp(30px, 6vw, 52px); line-height: 1.15; text-align: center; margin: 0 0 12px; }
+  .lead { text-align: center; color: var(--muted); margin: 0 auto 36px; max-width: 600px; }
+  h2 { font-size: 18px; margin: 0 0 12px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+  .filelist { list-style: none; padding: 0; margin: 8px 0 0; }
+  .filelist li { display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .filelist li span { overflow-wrap: anywhere; }
+  .filelist button { margin: 0; padding: 4px 12px; font-size: 13px; background: transparent;
+    color: var(--muted); border: 1px solid var(--line); flex: none; }
+  label { display: block; color: var(--muted); font-size: 13px; margin-bottom: 6px; }
+  input[type=file], select {
+    width: 100%; padding: 12px; border-radius: 10px; border: 0;
+    background: var(--input); color: #18181b; font: inherit;
+  }
+  select { width: auto; max-width: 100%; padding: 10px 12px; }
+  .row { margin-top: 16px; }
+  button {
+    display: block; margin: 20px auto 0; padding: 12px 36px; border-radius: 10px;
+    border: 1px solid var(--line); background: #e4e4e7; color: #0b0b0c;
+    font: inherit; font-weight: 600; cursor: pointer;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  #status { text-align: center; color: var(--muted); min-height: 24px; margin-top: 12px; }
+  #status.error { color: var(--bad); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; }
+  td.num, th.num { text-align: right; }
+  .verdict { font-size: clamp(20px, 3.5vw, 28px); font-weight: 700; text-align: center; margin: 4px 0 4px; }
+  .verdict .file { color: var(--good); word-break: break-all; }
+  .why { text-align: center; color: var(--muted); margin: 0 0 16px; }
+  .caution {
+    border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+    margin: 0 0 18px; font-size: 14px; color: var(--text);
+  }
+  tr.best td { background: #13241a; }
+  tr.best td:first-child { box-shadow: inset 3px 0 0 var(--good); }
+  .tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; margin-left: 6px;
+    border: 1px solid var(--good); color: var(--good); white-space: nowrap; }
+  .name { overflow-wrap: anywhere; }
+  #rankTable td:nth-child(2) { min-width: 180px; }
+  #rankTable th { min-width: 92px; }
+  #rankTable th:first-child { min-width: 0; }
+  .score-cell { font-weight: 700; }
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px; }
+  .sub { border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .sub h3 { margin: 0 0 4px; font-size: 15px; word-break: break-all; }
+  .big { font-size: 32px; font-weight: 700; }
+  .score { font-size: 44px; font-weight: 700; text-align: center; margin: 4px 0; }
+  .ok { color: var(--good); }
+  .minor { color: var(--warn); }
+  .major { color: var(--bad); }
+  .fix { font-weight: 600; }
+  .note { color: var(--muted); font-size: 13px; }
+  .legend span { margin-right: 16px; font-size: 13px; }
+  .legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; }
+  canvas { width: 100%; height: 220px; display: block; }
+  .scroll { overflow-x: auto; }
+  dl.defs { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 12px 0 0; font-size: 13px; color: var(--muted); }
+  dl.defs dt { color: var(--text); }
+  dl.defs dd { margin: 0; }
+  @media (max-width: 640px) { dl.defs { grid-template-columns: 1fr; } dl.defs dd { margin-bottom: 6px; } }
+  footer { text-align: center; color: var(--muted); border-top: 1px solid var(--line); padding: 20px; margin-top: 24px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <span data-i18n="brand"></span>
+  <span class="lang" role="group" aria-label="Language">
+    <button type="button" data-lang="th">ไทย</button>
+    <button type="button" data-lang="en">English</button>
+  </span>
+</header>
+<main>
+  <h1 data-i18n="title"></h1>
+  <p class="lead" data-i18n="lead"></p>
+
+  <form id="form" class="panel">
+    <label for="files" data-i18n="filesLabel"></label>
+    <input id="files" type="file" multiple accept=".mp3,.mp4,.m4a,.wav,audio/*,video/mp4">
+    <p class="note" data-i18n="filesHint"></p>
+    <ol id="fileList" class="filelist"></ol>
+    <div class="row">
+      <label for="content" data-i18n="contentLabel"></label>
+      <select id="content" autocomplete="off">
+        <option value="music" data-i18n="music"></option>
+        <option value="speech" data-i18n="speech"></option>
+      </select>
+    </div>
+    <button id="go" type="submit" data-i18n="compare"></button>
+    <div id="status" role="status"></div>
+  </form>
+
+  <div id="results" hidden>
+    <section class="panel">
+      <h2 data-i18n="summary"></h2>
+      <div class="verdict" id="verdict"></div>
+      <p class="why" id="why"></p>
+      <div class="caution" id="caution"></div>
+      <div class="scroll"><table id="rankTable"></table></div>
+      <dl class="defs" id="defs"></dl>
+    </section>
+
+    <section class="panel">
+      <h2 data-i18n="whatToFix"></h2>
+      <div class="cols" id="comfortCols"></div>
+      <p class="note" data-i18n="scoreNote"></p>
+    </section>
+
+    <section class="panel">
+      <h2 data-i18n="similarity"></h2>
+      <div class="score" id="overall"></div>
+      <div class="scroll"><table id="simTable"></table></div>
+      <p class="note" data-i18n="simNote"></p>
+    </section>
+
+    <section class="panel">
+      <h2 data-i18n="files"></h2>
+      <div class="scroll"><table id="fileTable"></table></div>
+    </section>
+
+    <section class="panel">
+      <h2 data-i18n="measurements"></h2>
+      <div class="scroll"><table id="metricTable"></table></div>
+    </section>
+
+    <section class="panel">
+      <h2 data-i18n="loudTime"></h2>
+      <div class="legend" id="legend1"></div>
+      <canvas id="envChart"></canvas>
+      <p class="note" data-i18n="loudTimeNote"></p>
+    </section>
+
+    <section class="panel">
+      <h2 data-i18n="spectrum"></h2>
+      <div class="legend" id="legend2"></div>
+      <canvas id="specChart"></canvas>
+      <p class="note" data-i18n="spectrumNote"></p>
+    </section>
+
+    <section class="panel">
+      <h2 data-i18n="bandsTitle"></h2>
+      <div class="scroll"><table id="bandTable"></table></div>
+    </section>
+
+    <section class="panel">
+      <h2 data-i18n="chromaTitle"></h2>
+      <div class="scroll"><table id="chromaTable"></table></div>
+      <p class="note" data-i18n="chromaNote"></p>
+    </section>
+  </div>
+</main>
+<footer>Puyawapun</footer>
+
+<script src="app.js"></script>
+<script>
+const I18N = {
+  en: {
+    brand: "Sound Compare",
+    title: "Compare Sounds",
+    lead: "Choose two or more MP3 or MP4 files and press Compare. Everything runs in your browser, files are not uploaded anywhere. Results use standard signal processing only. No AI is used.",
+    filesLabel: "Audio files (2 to 10)",
+    filesHint: "Choose several files at once, or add more one at a time. MP3, MP4, M4A or WAV.",
+    remove: "Remove",
+    tooMany: "You can compare up to 10 files.",
+    reading: (k, n, name) => `Reading file ${k} of ${n}: ${name}...`,
+    colPair: "Pair", colOverall: "Overall", colOffset: "Best time offset",
+    contentLabel: "Content type (sets the volume target)",
+    music: "Music (target -14 LUFS)", speech: "Speech, podcast or voice (target -16 LUFS)",
+    compare: "Compare",
+    needTwo: "Please choose at least two files.",
+    tooBig: "Each file must be 300 MB or smaller.",
+    comparing: "Comparing...", done: "Done.",
+    summary: "Summary: which one is easier to listen to",
+    most: "Most comfortable:", same: "The top files are about equally comfortable",
+    sameWhy: "Their comfort scores are within 3 points:",
+    otherIssues: "The other files have issues with:",
+    noIssues: "It has fewer problems overall.",
+    caution: "<b>Please note:</b> this is an estimate from measured numbers only, not from real listening. Ears, headphones, speakers and rooms all differ, so a file with a lower score can still sound better to you. Always confirm by listening.",
+    recommended: "Recommended",
+    colRank: "#", colFile: "File", colScore: "Comfort score (higher is easier)", colLufs: "Loudness (LUFS)",
+    colPeak: "Peak (dBFS)", colPresence: "Presence 2-5k vs body 200-500 (dB)", colHarsh: "Harsh 5-8k vs body (dB)",
+    colHiss: "Hiss 8k+ vs body (dB)", colDr: "Dynamic range p95-p10 (dB)", colDs: "Digital silence (%)",
+    colMed: "Loudness median active (dBFS)",
+    defs: [
+      ["Comfort score", "Out of 100. Points are taken off for each problem in the section below."],
+      ["Loudness (LUFS)", "How loud it feels, by the ITU-R BS.1770 standard. Target: music -14, speech -16."],
+      ["Presence, harsh, hiss vs body", "Energy in that range compared with the 200-500 Hz body. Higher means brighter or sharper in that range."],
+      ["Dynamic range p95-p10", "Difference between loud parts (95th percentile) and quiet parts (10th percentile)."],
+      ["Digital silence", "Share of the file below -60 dBFS."],
+      ["Loudness median active", "Middle level of the parts that are not silent."],
+    ],
+    whatToFix: "What to change in each file",
+    scoreNote: "Score out of 100 from fixed rules: volume target, peaks at or below -1 dBFS, no clipping, a comfortable loudness range, and a normal balance of bass, mids and treble. Tone advice is a rule of thumb, so trust your ears too.",
+    things: (n) => (n ? `${n} thing${n > 1 ? "s" : ""} to change` : "Nothing to change"),
+    colArea: "Area", colStatus: "Status", colTodo: "What to do",
+    lvl: { ok: "OK", minor: "Fix", major: "Important" },
+    similarity: "Similarity",
+    simNote: "How alike each pair of sounds is. Overall is a fixed weighted average: spectrum 35%, harmony 25%, loudness shape 25%, tempo 15%. If a file has no clear beat, tempo is left out and the other weights are scaled up.",
+    colPart: "Part", colSim: "Similarity", colWeight: "Weight",
+    simSpectrum: "Spectrum shape (tone colour)", simHarmony: "Harmony (pitch class profile)",
+    simLoud: "Loudness shape over time", simTempo: "Tempo", notUsed: "Not used", noBeat: "No clear beat in one or both files",
+    simOffset: "Best time alignment of B against A", simKey: "Same estimated key", yes: "Yes", no: "No",
+    files: "Files", name: "Name", size: "Size", type: "Type", hasVideo: "Has video", channels: "Channels",
+    bitrate: "Bitrate", length: "Full length", naVideo: "n/a (has video)", about: "about",
+    measurements: "Measurements", colMeasure: "Measurement", colDiff: "Difference (B minus A)",
+    same2: "same", different: "different", unclear: "Unclear", confidence: "confidence",
+    m: {
+      len: "Length analysed", lufs: "Integrated loudness", lra: "Loudness range", peak: "Peak level",
+      rms: "Average level (RMS)", crest: "Crest factor (peak to average)", dr: "Dynamic range (loud to quiet parts)",
+      sil: "Silence", ds: "Digital silence", med: "Loudness median active", clip: "Clipped samples",
+      centroid: "Brightness (spectral centroid)", rolloff: "85% energy below (rolloff)", zcr: "Zero crossings per second",
+      tilt: "Tone tilt (treble against bass)", lead: "Silence at start", trail: "Silence at end",
+      presence: "Presence 2-5k vs body", harsh: "Harsh 5-8k vs body", hiss: "Hiss 8k+ vs body",
+      tempo: "Tempo", key: "Estimated key",
+    },
+    loudTime: "Loudness over time", loudTimeNote: "Short term level in dBFS across each file.",
+    spectrum: "Frequency spectrum", spectrumNote: "Average level per frequency in dBFS, 30 Hz to 10 kHz, log scale.",
+    bandsTitle: "Energy by frequency band", colBand: "Band", colDiffShort: "Difference",
+    bands: ["Sub bass (20-60 Hz)", "Bass (60-250 Hz)", "Low mid (250-500 Hz)", "Mid (500-2000 Hz)", "Upper mid (2-4 kHz)", "Presence (4-6 kHz)", "Brilliance (6-11 kHz)"],
+    chromaTitle: "Pitch class profile", colNote: "Note",
+    chromaNote: "How strong each musical note is, relative to the strongest note (1.00).",
+  },
+  th: {
+    brand: "Sound Compare",
+    title: "เปรียบเทียบเสียง",
+    lead: "เลือกไฟล์ MP3 หรือ MP4 ตั้งแต่สองไฟล์ขึ้นไปแล้วกดเปรียบเทียบ ทุกอย่างทำงานในเบราว์เซอร์ของคุณ ไม่มีการอัปโหลดไฟล์ไปที่ไหน ผลลัพธ์ใช้การประมวลผลสัญญาณแบบมาตรฐานเท่านั้น ไม่ใช้ AI",
+    filesLabel: "ไฟล์เสียง (2 ถึง 10 ไฟล์)",
+    filesHint: "เลือกหลายไฟล์พร้อมกันได้ หรือเพิ่มทีละไฟล์ก็ได้ รองรับ MP3, MP4, M4A และ WAV",
+    remove: "ลบ",
+    tooMany: "เปรียบเทียบได้สูงสุด 10 ไฟล์",
+    reading: (k, n, name) => `กำลังอ่านไฟล์ที่ ${k} จาก ${n}: ${name}...`,
+    colPair: "คู่", colOverall: "รวม", colOffset: "เวลาที่ตรงกันที่สุด",
+    contentLabel: "ประเภทเสียง (ใช้กำหนดเป้าหมายความดัง)",
+    music: "เพลง (เป้าหมาย -14 LUFS)", speech: "เสียงพูด พอดแคสต์ หรือเสียงบรรยาย (เป้าหมาย -16 LUFS)",
+    compare: "เปรียบเทียบ",
+    needTwo: "กรุณาเลือกไฟล์อย่างน้อยสองไฟล์",
+    tooBig: "แต่ละไฟล์ต้องมีขนาดไม่เกิน 300 MB",
+    comparing: "กำลังเปรียบเทียบ...", done: "เสร็จแล้ว",
+    summary: "สรุป: ไฟล์ไหนฟังสบายกว่า",
+    most: "ฟังสบายที่สุด:", same: "ไฟล์อันดับต้นฟังสบายพอๆ กัน",
+    sameWhy: "คะแนนความสบายหูต่างกันไม่ถึง 3 คะแนน:",
+    otherIssues: "ไฟล์อื่นมีปัญหาเรื่อง:",
+    noIssues: "โดยรวมมีปัญหาน้อยกว่า",
+    caution: "<b>ข้อควรระวัง:</b> ผลนี้ประเมินจากตัวเลขที่วัดได้เท่านั้น ไม่ได้มาจากการฟังจริง หู หูฟัง ลำโพง และห้องของแต่ละคนต่างกัน ไฟล์ที่คะแนนต่ำกว่าอาจฟังดีกว่าสำหรับคุณก็ได้ ควรตัดสินสุดท้ายด้วยการฟังจริงเสมอ",
+    recommended: "แนะนำ",
+    colRank: "อันดับ", colFile: "ไฟล์", colScore: "คะแนนความสบายหู (ยิ่งสูงยิ่งฟังสบาย)", colLufs: "ความดัง (LUFS)",
+    colPeak: "ยอดสัญญาณ (dBFS)", colPresence: "ย่าน 2-5k เทียบช่วงหลัก 200-500 (dB)", colHarsh: "ย่านบาดหู 5-8k เทียบช่วงหลัก (dB)",
+    colHiss: "เสียงซ่า 8k+ เทียบช่วงหลัก (dB)", colDr: "ช่วงความดัง p95-p10 (dB)", colDs: "ช่วงเงียบสนิท (%)",
+    colMed: "ระดับกลางของช่วงที่มีเสียง (dBFS)",
+    defs: [
+      ["คะแนนความสบายหู", "เต็ม 100 หักคะแนนตามปัญหาแต่ละข้อในหัวข้อถัดไป"],
+      ["ความดัง (LUFS)", "ความดังที่หูรู้สึก ตามมาตรฐาน ITU-R BS.1770 เป้าหมาย: เพลง -14 เสียงพูด -16"],
+      ["ย่าน 2-5k, 5-8k, 8k+ เทียบช่วงหลัก", "พลังงานในย่านนั้นเทียบกับช่วงหลัก 200-500 Hz ยิ่งสูงยิ่งสว่างหรือแหลมในย่านนั้น"],
+      ["ช่วงความดัง p95-p10", "ความต่างระหว่างช่วงดัง (เปอร์เซ็นไทล์ 95) กับช่วงเบา (เปอร์เซ็นไทล์ 10)"],
+      ["ช่วงเงียบสนิท", "สัดส่วนของไฟล์ที่เบากว่า -60 dBFS"],
+      ["ระดับกลางของช่วงที่มีเสียง", "ค่ากลางของระดับเสียงเฉพาะช่วงที่ไม่เงียบ"],
+    ],
+    whatToFix: "สิ่งที่ควรแก้ในแต่ละไฟล์",
+    scoreNote: "คะแนนเต็ม 100 จากกฎตายตัว: ความดังตามเป้าหมาย ยอดสัญญาณไม่เกิน -1 dBFS ไม่มีเสียงแตก ช่วงความดังพอดี และสมดุลทุ้ม กลาง แหลมปกติ คำแนะนำเรื่องโทนเสียงเป็นแนวทางทั่วไป ควรฟังประกอบด้วย",
+    things: (n) => (n ? `ควรแก้ ${n} ข้อ` : "ไม่มีอะไรต้องแก้"),
+    colArea: "หัวข้อ", colStatus: "สถานะ", colTodo: "ควรทำอะไร",
+    lvl: { ok: "ปกติ", minor: "ควรแก้", major: "สำคัญ" },
+    similarity: "ความคล้ายกัน",
+    simNote: "เสียงแต่ละคู่คล้ายกันแค่ไหน ค่ารวมคือค่าเฉลี่ยถ่วงน้ำหนักคงที่: สเปกตรัม 35% ฮาร์โมนี 25% รูปแบบความดัง 25% จังหวะ 15% ถ้าไฟล์ใดไม่มีจังหวะชัดเจน จะไม่นับจังหวะและเพิ่มน้ำหนักส่วนอื่นแทน",
+    colPart: "ส่วน", colSim: "ความคล้าย", colWeight: "น้ำหนัก",
+    simSpectrum: "รูปร่างสเปกตรัม (สีสันเสียง)", simHarmony: "ฮาร์โมนี (โน้ตที่เด่น)",
+    simLoud: "รูปแบบความดังตามเวลา", simTempo: "จังหวะ", notUsed: "ไม่ได้ใช้", noBeat: "ไฟล์ใดไฟล์หนึ่งไม่มีจังหวะชัดเจน",
+    simOffset: "เวลาที่ B ตรงกับ A มากที่สุด", simKey: "คีย์เดียวกัน", yes: "ใช่", no: "ไม่ใช่",
+    files: "ข้อมูลไฟล์", name: "ชื่อ", size: "ขนาด", type: "ชนิด", hasVideo: "มีวิดีโอ", channels: "จำนวนช่องเสียง",
+    bitrate: "บิตเรต", length: "ความยาวทั้งหมด", naVideo: "ไม่ทราบ (มีวิดีโอ)", about: "ประมาณ",
+    measurements: "ค่าที่วัดได้", colMeasure: "ค่า", colDiff: "ผลต่าง (B ลบ A)",
+    same2: "เหมือนกัน", different: "ต่างกัน", unclear: "ไม่ชัดเจน", confidence: "ความมั่นใจ",
+    m: {
+      len: "ความยาวที่วิเคราะห์", lufs: "ความดังรวม", lra: "ช่วงความดัง (LRA)", peak: "ยอดสัญญาณ",
+      rms: "ระดับเฉลี่ย (RMS)", crest: "ยอดเทียบค่าเฉลี่ย (crest factor)", dr: "ช่วงความดัง (ดังถึงเบา)",
+      sil: "ช่วงเงียบ", ds: "ช่วงเงียบสนิท", med: "ระดับกลางของช่วงที่มีเสียง", clip: "สัญญาณที่แตก",
+      centroid: "ความสว่างของเสียง (spectral centroid)", rolloff: "พลังงาน 85% อยู่ต่ำกว่า", zcr: "จำนวนครั้งที่ตัดศูนย์ต่อวินาที",
+      tilt: "ความเอียงของโทน (แหลมเทียบทุ้ม)", lead: "ช่วงเงียบตอนต้น", trail: "ช่วงเงียบตอนท้าย",
+      presence: "ย่าน 2-5k เทียบช่วงหลัก", harsh: "ย่าน 5-8k เทียบช่วงหลัก", hiss: "ย่าน 8k+ เทียบช่วงหลัก",
+      tempo: "จังหวะ", key: "คีย์โดยประมาณ",
+    },
+    loudTime: "ความดังตามเวลา", loudTimeNote: "ระดับเสียงช่วงสั้นๆ (dBFS) ตลอดทั้งไฟล์",
+    spectrum: "สเปกตรัมความถี่", spectrumNote: "ระดับเฉลี่ยของแต่ละความถี่ (dBFS) ตั้งแต่ 30 Hz ถึง 10 kHz สเกลลอการิทึม",
+    bandsTitle: "พลังงานแยกตามย่านความถี่", colBand: "ย่าน", colDiffShort: "ผลต่าง",
+    bands: ["ทุ้มลึก (20-60 Hz)", "ทุ้ม (60-250 Hz)", "กลางต่ำ (250-500 Hz)", "กลาง (500-2000 Hz)", "กลางสูง (2-4 kHz)", "ย่านชัด (4-6 kHz)", "แหลม (6-11 kHz)"],
+    chromaTitle: "ความเด่นของโน้ต", colNote: "โน้ต",
+    chromaNote: "ความแรงของแต่ละโน้ตเทียบกับโน้ตที่แรงที่สุด (1.00)",
+  },
+};
+
+const $ = (id) => document.getElementById(id);
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const MAX_BYTES = 300 * 1024 * 1024;
+const MAX_FILES = 10;
+const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const COLORS = ["#60a5fa", "#f59e0b", "#34d399", "#f472b6", "#a78bfa", "#f87171", "#22d3ee", "#facc15", "#fb923c", "#a3e635"];
+const L = (i) => String.fromCharCode(65 + i);
+let chosen = [];
+let last = null;
+
+let lang = "th";
+try {
+  const saved = localStorage.getItem("lang");
+  lang = saved === "en" || saved === "th" ? saved : navigator.language.startsWith("th") ? "th" : "en";
+} catch {}
+const T = () => I18N[lang];
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const num = (v, digits = 1) => (typeof v === "number" ? String(Number(v.toFixed(digits))) : esc(v));
+const fmt = (v, unit = "", digits = 2) => (typeof v === "number" ? `${num(v, digits)}${unit ? " " + unit : ""}` : esc(v));
+const diff = (a, b, unit, digits = 2) => {
+  if (typeof a !== "number" || typeof b !== "number") return a === b ? T().same2 : T().different;
+  const d = b - a;
+  return `${d > 0 ? "+" : ""}${Number(d.toFixed(digits))}${unit ? " " + unit : ""}`;
+};
+const time = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+
+function table(el, head, rows, rowClass = () => "", textCols = 1) {
+  const cls = (i) => (i >= textCols ? ' class="num"' : "");
+  el.innerHTML =
+    "<tr>" + head.map((h, i) => `<th${cls(i)}>${h}</th>`).join("") + "</tr>" +
+    rows.map((r, k) => `<tr class="${rowClass(k)}">` + r.map((c, i) => `<td${cls(i)}>${c}</td>`).join("") + "</tr>").join("");
+}
+
+function legend(el, files) {
+  el.innerHTML = files.map((f, i) => `<span><i style="background:${COLORS[i]}"></i>${L(i)}: ${esc(f.name)}</span>`).join("");
+}
+
+function renderList() {
+  $("fileList").innerHTML = chosen
+    .map((f, i) => `<li><span>${L(i)}: ${esc(f.name)} <span class="note">(${fmt(f.size / 1048576, "MB", 1)})</span></span>` +
+      `<button type="button" data-remove="${i}">${T().remove}</button></li>`)
+    .join("");
+}
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = T()[el.dataset.i18n]; });
+  document.querySelectorAll("[data-lang]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
+  renderList();
+  if (last) show(last);
+}
+
+function lineChart(canvas, series, yUnit, xLabels) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const g = canvas.getContext("2d");
+  g.scale(dpr, dpr);
+  g.clearRect(0, 0, w, h);
+  const pad = { l: 48, r: 10, t: 10, b: 24 };
+  const all = series.flatMap((s) => s.values);
+  const span = Math.max(1, Math.max(...all) - Math.min(...all));
+  const step = [5, 10, 20, 25, 50].find((st) => span / st <= 6) || 50;
+  const lo = Math.floor(Math.min(...all) / step) * step;
+  const hi = Math.max(lo + step, Math.ceil(Math.max(...all) / step) * step);
+  const x = (f) => pad.l + f * (w - pad.l - pad.r);
+  const y = (v) => pad.t + (1 - (v - lo) / (hi - lo)) * (h - pad.t - pad.b);
+  g.font = "11px system-ui, sans-serif";
+  g.fillStyle = css("--muted");
+  g.strokeStyle = css("--line");
+  g.lineWidth = 1;
+  for (let v = lo; v <= hi; v += step) {
+    g.beginPath(); g.moveTo(pad.l, y(v)); g.lineTo(w - pad.r, y(v)); g.stroke();
+    g.fillText(`${Math.round(v)} ${yUnit}`, 2, y(v) + 4);
+  }
+  xLabels.forEach(([f, text]) => g.fillText(text, Math.min(x(f), w - 40), h - 6));
+  for (const s of series) {
+    g.strokeStyle = s.color;
+    g.lineWidth = 1.6;
+    g.setLineDash(s.dash || []);
+    g.beginPath();
+    s.values.forEach((v, i) => {
+      const px = x(s.xs ? s.xs[i] : i / Math.max(1, s.values.length - 1));
+      i ? g.lineTo(px, y(v)) : g.moveTo(px, y(v));
+    });
+    g.stroke();
+  }
+  g.setLineDash([]);
+}
+
+function drawCharts() {
+  if (!last) return;
+  const { files, spectrumFreqs } = last;
+  const longest = Math.max(...files.map((r) => r.analysis.durationSec)) || 1;
+  const shown = (r) => Math.min(r.analysis.durationSec, last.maxSeconds);
+  const dash = (i) => (i % 2 ? [6, 4] : []);
+  lineChart($("envChart"), files.map((r, i) => ({
+    values: r.analysis.envelopeDb,
+    xs: r.analysis.envelopeDb.map((_, k) => (k / Math.max(1, r.analysis.envelopeDb.length - 1)) * (shown(r) / longest)),
+    color: COLORS[i],
+    dash: dash(i),
+  })), "dB", [[0, "0:00"], [0.5, time(longest / 2)], [1, time(longest)]]);
+  const logPos = (f) => Math.log(f / 30) / Math.log(10000 / 30);
+  lineChart($("specChart"), files.map((r, i) => ({
+    values: r.analysis.spectrumDb,
+    xs: spectrumFreqs.map(logPos),
+    color: COLORS[i],
+    dash: dash(i),
+  })), "dB", [[logPos(30), "30 Hz"], [logPos(100), "100"], [logPos(1000), "1k"], [logPos(10000) - 0.04, "10k"]]);
+}
+
+function showSummary(files, adv) {
+  const t = T();
+  const SC = window.SoundCompare;
+  const { order, tied } = SC.rank(adv);
+  if (tied.length > 1) {
+    $("verdict").textContent = t.same;
+    $("why").textContent = `${t.sameWhy} ${tied.map((i) => `${L(i)}: ${files[i].name}`).join(", ")}`;
+  } else {
+    const best = order[0];
+    $("verdict").innerHTML = `${t.most} <span class="file">${L(best)}: ${esc(files[best].name)}</span>`;
+    const reasons = SC.whyBest(adv, best);
+    $("why").textContent = reasons.length ? `${t.otherIssues} ${reasons.join(", ")}` : t.noIssues;
+  }
+  $("caution").innerHTML = t.caution;
+  const head = [t.colRank, t.colFile, t.colScore, t.colLufs, t.colPeak, t.colPresence, t.colHarsh, t.colHiss, t.colDr, t.colDs, t.colMed];
+  const rows = order.map((i, k) => {
+    const r = files[i], A = r.analysis;
+    const tag = tied.length === 1 && k === 0 ? `<span class="tag">${t.recommended}</span>` : "";
+    return [
+      String(k + 1),
+      `<span class="name">${L(i)}: ${esc(r.name)}</span>${tag}`,
+      `<span class="score-cell">${adv[i].score}</span> / 100`,
+      num(r.loud.lufs), num(A.peakDb), num(A.vsBodyDb.presence), num(A.vsBodyDb.harsh), num(A.vsBodyDb.hiss),
+      num(A.dynamicRangeDb), num(A.digitalSilencePct), num(A.medianActiveDb),
+    ];
+  });
+  table($("rankTable"), head, rows, (k) => (tied.length === 1 && k === 0 ? "best" : ""), 2);
+  $("defs").innerHTML = t.defs.map(([d, e]) => `<dt>${esc(d)}</dt><dd>${esc(e)}</dd>`).join("");
+}
+
+function showComfort(files, adv) {
+  const t = T();
+  const order = window.SoundCompare.rank(adv).order;
+  $("comfortCols").innerHTML = order.map((i) => {
+    const r = adv[i];
+    const fixes = r.items.filter((it) => it.level !== "ok");
+    const rows = r.items
+      .slice()
+      .sort((x, y) => y.penalty - x.penalty)
+      .map((it) => `<tr><td>${esc(it.label)}</td><td class="${it.level}">${t.lvl[it.level]}</td>` +
+        `<td>${it.change ? `<span class="fix">${esc(it.change)}</span><br>` : ""}<span class="note">${esc(it.detail)}</span></td></tr>`)
+      .join("");
+    return `<div class="sub"><h3>${L(i)}: ${esc(files[i].name)}</h3>` +
+      `<div class="big">${r.score}<span class="note"> / 100</span></div>` +
+      `<p class="note">${t.things(fixes.length)}</p>` +
+      `<div class="scroll"><table><tr><th>${t.colArea}</th><th>${t.colStatus}</th><th>${t.colTodo}</th></tr>${rows}</table></div></div>`;
+  }).join("");
+}
+
+function showSimilarity(pairs) {
+  const t = T();
+  const pct = (v) => (v === null ? t.notUsed : `${v}%`);
+  $("overall").hidden = pairs.length !== 1;
+  if (pairs.length === 1) $("overall").textContent = `${pairs[0].c.overallPct}%`;
+  table($("simTable"), [t.colPair, t.colOverall, t.simSpectrum, t.simHarmony, t.simLoud, t.simTempo, t.colOffset, t.simKey],
+    pairs.map(({ i, j, c }) => [
+      `${L(i)} - ${L(j)}`, `<b>${c.overallPct}%</b>`, pct(c.spectrumPct), pct(c.harmonyPct), pct(c.loudnessShapePct),
+      pct(c.tempoPct), fmt(c.bestOffsetSec, "s"), c.sameKey ? t.yes : t.no,
+    ]));
+}
+
+function perFile(el, firstHead, files, rows) {
+  const t = T();
+  const two = files.length === 2;
+  table(el, [firstHead, ...files.map((_, i) => L(i)), ...(two ? [t.colDiff] : [])],
+    rows.map(([name, get, unit = "", digits = 2]) => {
+      const v = files.map(get);
+      return [name, ...v.map((x) => fmt(x, unit, digits)), ...(two ? [diff(v[0], v[1], unit, digits)] : [])];
+    }));
+}
+
+function show(data) {
+  last = data;
+  const t = T();
+  const SC = window.SoundCompare;
+  const { files, pairs } = data;
+  const content = $("content").value;
+  const adv = files.map((r) => SC.advise(SC.measures(r), content, lang));
+
+  showSummary(files, adv);
+  showComfort(files, adv);
+  showSimilarity(pairs);
+
+  const kbps = (r) => (r.bitrateKbps === null ? t.naVideo : `${t.about} ${r.bitrateKbps} kbps`);
+  table($("fileTable"), ["", ...files.map((_, i) => L(i))], [
+    [t.name, ...files.map((r) => esc(r.name))],
+    [t.size, ...files.map((r) => fmt(r.sizeBytes / 1048576, "MB"))],
+    [t.type, ...files.map((r) => esc(r.type))],
+    [t.hasVideo, ...files.map((r) => (r.hasVideo ? t.yes : t.no))],
+    [t.channels, ...files.map((r) => fmt(r.channels, "", 0))],
+    [t.bitrate, ...files.map(kbps)],
+    [t.length, ...files.map((r) => time(r.fullDurationSec))],
+  ]);
+
+  const m = t.m;
+  const a = (k) => (r) => r.analysis[k];
+  perFile($("metricTable"), t.colMeasure, files, [
+    [m.len, a("durationSec"), "s"],
+    [m.lufs, (r) => r.loud.lufs, "LUFS", 1],
+    [m.lra, (r) => r.loud.lra, "LU", 1],
+    [m.peak, a("peakDb"), "dBFS"],
+    [m.rms, a("rmsDb"), "dBFS"],
+    [m.med, a("medianActiveDb"), "dBFS", 1],
+    [m.crest, a("crestDb"), "dB"],
+    [m.dr, a("dynamicRangeDb"), "dB"],
+    [m.sil, a("silencePct"), "%"],
+    [m.ds, a("digitalSilencePct"), "%", 1],
+    [m.clip, a("clippingPct"), "%", 3],
+    [m.presence, (r) => r.analysis.vsBodyDb.presence, "dB", 1],
+    [m.harsh, (r) => r.analysis.vsBodyDb.harsh, "dB", 1],
+    [m.hiss, (r) => r.analysis.vsBodyDb.hiss, "dB", 1],
+    [m.centroid, a("centroidHz"), "Hz", 0],
+    [m.rolloff, a("rolloffHz"), "Hz", 0],
+    [m.zcr, a("zeroCrossingsPerSec"), "", 0],
+    [m.tilt, a("tiltDbPerOct"), "dB/oct", 1],
+    [m.lead, a("leadSilenceSec"), "s", 1],
+    [m.trail, a("trailSilenceSec"), "s", 1],
+    [m.tempo, (r) => (r.analysis.bpm > 0 ? `${r.analysis.bpm} BPM (${t.confidence} ${r.analysis.bpmConfidence})` : t.unclear)],
+    [m.key, (r) => `${r.analysis.key} (${r.analysis.keyConfidence})`],
+  ]);
+
+  perFile($("bandTable"), t.colBand, files,
+    t.bands.map((name, k) => [name, (r) => r.analysis.bandsPct[k], "%", 1]));
+
+  table($("chromaTable"), [t.colNote, ...NOTES],
+    files.map((r, i) => [L(i), ...r.analysis.chroma.map((v) => v.toFixed(2))]));
+
+  legend($("legend1"), files);
+  legend($("legend2"), files);
+  $("results").hidden = false;
+  drawCharts();
+}
+
+$("files").addEventListener("change", () => {
+  const status = $("status");
+  status.className = "";
+  status.textContent = "";
+  for (const f of $("files").files)
+    if (!chosen.some((c) => c.name === f.name && c.size === f.size && c.lastModified === f.lastModified)) chosen.push(f);
+  $("files").value = "";
+  if (chosen.length > MAX_FILES) {
+    chosen = chosen.slice(0, MAX_FILES);
+    status.className = "error";
+    status.textContent = T().tooMany;
+  }
+  renderList();
+});
+
+$("fileList").addEventListener("click", (e) => {
+  const i = e.target.dataset && e.target.dataset.remove;
+  if (i === undefined) return;
+  chosen.splice(Number(i), 1);
+  renderList();
+});
+
+$("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const t = T();
+  const status = $("status");
+  status.className = "";
+  if (chosen.length < 2) { status.textContent = t.needTwo; return; }
+  if (chosen.some((f) => f.size > MAX_BYTES)) {
+    status.className = "error";
+    status.textContent = t.tooBig;
+    return;
+  }
+  const SC = window.SoundCompare;
+  $("go").disabled = true;
+  try {
+    const files = [];
+    for (const [k, f] of chosen.entries()) {
+      status.textContent = T().reading(k + 1, chosen.length, f.name);
+      files.push(await SC.study(f));
+    }
+    status.textContent = T().comparing;
+    await new Promise((r) => setTimeout(r, 0));
+    const pairs = [];
+    for (let i = 0; i < files.length; i++)
+      for (let j = i + 1; j < files.length; j++)
+        pairs.push({ i, j, c: SC.compare(files[i].analysis, files[j].analysis) });
+    show({ files, pairs, spectrumFreqs: SC.SPEC_FREQS.map((f) => Math.round(f)), maxSeconds: SC.MAX_SECONDS });
+    status.textContent = T().done;
+    $("verdict").scrollIntoView({ behavior: "smooth", block: "center" });
+  } catch (err) {
+    status.className = "error";
+    status.textContent = err.message;
+  } finally {
+    $("go").disabled = false;
+  }
+});
+
+document.querySelectorAll("[data-lang]").forEach((btn) =>
+  btn.addEventListener("click", () => {
+    lang = btn.dataset.lang;
+    try { localStorage.setItem("lang", lang); } catch {}
+    applyLang();
+  }),
+);
+window.addEventListener("resize", drawCharts);
+$("content").addEventListener("change", () => last && show(last));
+applyLang();
+</script>
+</body>
+</html>
