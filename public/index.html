@@ -79,6 +79,9 @@
   #rankTable td:nth-child(2) { min-width: 180px; }
   #rankTable th { min-width: 92px; }
   #rankTable th:first-child { min-width: 0; }
+  #rankTable audio { width: 250px; height: 36px; display: block; }
+  .check { display: flex; gap: 8px; align-items: center; margin: 0 0 12px; font-size: 14px; color: var(--text); }
+  .check input { width: 18px; height: 18px; margin: 0; }
   .score-cell { font-weight: 700; }
   .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px; }
   .sub { border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
@@ -136,6 +139,7 @@
       <div class="verdict" id="verdict"></div>
       <p class="why" id="why"></p>
       <div class="caution" id="caution"></div>
+      <label class="check"><input type="checkbox" id="match" checked> <span data-i18n="matchLabel"></span></label>
       <div class="scroll"><table id="rankTable"></table></div>
       <dl class="defs" id="defs"></dl>
     </section>
@@ -217,6 +221,9 @@ const I18N = {
     noIssues: "It has fewer problems overall.",
     caution: "<b>Please note:</b> this is an estimate from measured numbers only, not from real listening. Ears, headphones, speakers and rooms all differ, so a file with a lower score can still sound better to you. Always confirm by listening.",
     recommended: "Recommended",
+    colListen: "Listen",
+    matchLabel: "Play at equal loudness (louder files are turned down to match the quietest, so loudness does not sway your ears)",
+    turnedDown: (db) => `turned down ${db} dB`,
     colRank: "#", colFile: "File", colScore: "Comfort score (higher is easier)", colLufs: "Loudness (LUFS)",
     colPeak: "Peak (dBFS)", colPresence: "Presence 2-5k vs body 200-500 (dB)", colHarsh: "Harsh 5-8k vs body (dB)",
     colHiss: "Hiss 8k+ vs body (dB)", colDr: "Dynamic range p95-p10 (dB)", colDs: "Digital silence (%)",
@@ -283,6 +290,9 @@ const I18N = {
     noIssues: "โดยรวมมีปัญหาน้อยกว่า",
     caution: "<b>ข้อควรระวัง:</b> ผลนี้ประเมินจากตัวเลขที่วัดได้เท่านั้น ไม่ได้มาจากการฟังจริง หู หูฟัง ลำโพง และห้องของแต่ละคนต่างกัน ไฟล์ที่คะแนนต่ำกว่าอาจฟังดีกว่าสำหรับคุณก็ได้ ควรตัดสินสุดท้ายด้วยการฟังจริงเสมอ",
     recommended: "แนะนำ",
+    colListen: "ฟัง",
+    matchLabel: "เล่นที่ความดังเท่ากัน (ลดเสียงไฟล์ที่ดังกว่าให้เท่าไฟล์ที่เบาที่สุด หูจะได้ไม่ถูกความดังหลอก)",
+    turnedDown: (db) => `ลดเสียง ${db} dB`,
     colRank: "อันดับ", colFile: "ไฟล์", colScore: "คะแนนความสบายหู (ยิ่งสูงยิ่งฟังสบาย)", colLufs: "ความดัง (LUFS)",
     colPeak: "ยอดสัญญาณ (dBFS)", colPresence: "ย่าน 2-5k เทียบช่วงหลัก 200-500 (dB)", colHarsh: "ย่านบาดหู 5-8k เทียบช่วงหลัก (dB)",
     colHiss: "เสียงซ่า 8k+ เทียบช่วงหลัก (dB)", colDr: "ช่วงความดัง p95-p10 (dB)", colDs: "ช่วงเงียบสนิท (%)",
@@ -336,6 +346,7 @@ const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const COLORS = ["#60a5fa", "#f59e0b", "#34d399", "#f472b6", "#a78bfa", "#f87171", "#22d3ee", "#facc15", "#fb923c", "#a3e635"];
 const L = (i) => String.fromCharCode(65 + i);
 let chosen = [];
+let urls = [];
 let last = null;
 
 let lang = "th";
@@ -440,7 +451,19 @@ function drawCharts() {
   })), "dB", [[logPos(30), "30 Hz"], [logPos(100), "100"], [logPos(1000), "1k"], [logPos(10000) - 0.04, "10k"]]);
 }
 
-function showSummary(files, adv) {
+function applyGain() {
+  if (!last) return;
+  const loud = last.files.map((r) => r.loud.lufs);
+  const floor = Math.min(...loud.filter((l) => l > -70));
+  document.querySelectorAll("#rankTable audio").forEach((a) => {
+    const i = Number(a.dataset.i);
+    const cut = $("match").checked && loud[i] > -70 ? Math.max(0, loud[i] - floor) : 0;
+    a.volume = Math.pow(10, -cut / 20);
+    document.querySelector(`[data-gain="${i}"]`).textContent = cut > 0.05 ? T().turnedDown(cut.toFixed(1)) : "";
+  });
+}
+
+function showSummary(files, adv, fileUrls) {
   const t = T();
   const SC = window.SoundCompare;
   const { order, tied } = SC.rank(adv);
@@ -454,19 +477,21 @@ function showSummary(files, adv) {
     $("why").textContent = reasons.length ? `${t.otherIssues} ${reasons.join(", ")}` : t.noIssues;
   }
   $("caution").innerHTML = t.caution;
-  const head = [t.colRank, t.colFile, t.colScore, t.colLufs, t.colPeak, t.colPresence, t.colHarsh, t.colHiss, t.colDr, t.colDs, t.colMed];
+  const head = [t.colRank, t.colFile, t.colListen, t.colScore, t.colLufs, t.colPeak, t.colPresence, t.colHarsh, t.colHiss, t.colDr, t.colDs, t.colMed];
   const rows = order.map((i, k) => {
     const r = files[i], A = r.analysis;
     const tag = tied.length === 1 && k === 0 ? `<span class="tag">${t.recommended}</span>` : "";
     return [
       String(k + 1),
       `<span class="name">${L(i)}: ${esc(r.name)}</span>${tag}`,
+      `<audio controls preload="metadata" src="${fileUrls[i]}" data-i="${i}"></audio><span class="note" data-gain="${i}"></span>`,
       `<span class="score-cell">${adv[i].score}</span> / 100`,
       num(r.loud.lufs), num(A.peakDb), num(A.vsBodyDb.presence), num(A.vsBodyDb.harsh), num(A.vsBodyDb.hiss),
       num(A.dynamicRangeDb), num(A.digitalSilencePct), num(A.medianActiveDb),
     ];
   });
-  table($("rankTable"), head, rows, (k) => (tied.length === 1 && k === 0 ? "best" : ""), 2);
+  table($("rankTable"), head, rows, (k) => (tied.length === 1 && k === 0 ? "best" : ""), 3);
+  applyGain();
   $("defs").innerHTML = t.defs.map(([d, e]) => `<dt>${esc(d)}</dt><dd>${esc(e)}</dd>`).join("");
 }
 
@@ -519,7 +544,7 @@ function show(data) {
   const content = $("content").value;
   const adv = files.map((r) => SC.advise(SC.measures(r), content, lang));
 
-  showSummary(files, adv);
+  showSummary(files, adv, data.urls);
   showComfort(files, adv);
   showSimilarity(pairs);
 
@@ -620,7 +645,9 @@ $("form").addEventListener("submit", async (e) => {
     for (let i = 0; i < files.length; i++)
       for (let j = i + 1; j < files.length; j++)
         pairs.push({ i, j, c: SC.compare(files[i].analysis, files[j].analysis) });
-    show({ files, pairs, spectrumFreqs: SC.SPEC_FREQS.map((f) => Math.round(f)), maxSeconds: SC.MAX_SECONDS });
+    urls.forEach((u) => URL.revokeObjectURL(u));
+    urls = chosen.map((f) => URL.createObjectURL(f));
+    show({ files, pairs, urls, spectrumFreqs: SC.SPEC_FREQS.map((f) => Math.round(f)), maxSeconds: SC.MAX_SECONDS });
     status.textContent = T().done;
     $("verdict").scrollIntoView({ behavior: "smooth", block: "center" });
   } catch (err) {
@@ -640,6 +667,10 @@ document.querySelectorAll("[data-lang]").forEach((btn) =>
 );
 window.addEventListener("resize", drawCharts);
 $("content").addEventListener("change", () => last && show(last));
+$("match").addEventListener("change", applyGain);
+$("rankTable").addEventListener("play", (e) => {
+  document.querySelectorAll("#rankTable audio").forEach((a) => { if (a !== e.target) a.pause(); });
+}, true);
 applyLang();
 </script>
 </body>

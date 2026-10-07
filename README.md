@@ -10,6 +10,11 @@ Choose 2 to 10 MP3 or MP4 files and get:
 
 The page is in Thai and English, with a switch in the top corner.
 
+Each file can be played in the summary table. Equal loudness playback is on
+by default: louder files are turned down to match the quietest one (using
+the measured LUFS), so a louder file does not sound better just because it
+is louder. Starting one file pauses the others.
+
 The summary at the top ranks the files, highlights the most comfortable
 one, and shows: comfort score, loudness (LUFS), peak, presence 2-5k vs
 body 200-500, harsh 5-8k vs body, hiss 8k+ vs body, dynamic range p95-p10,
