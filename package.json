@@ -1,0 +1,14 @@
+{
+  "name": "sound-compare",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build src/browser.ts --outfile public/app.js --target browser --format iife --minify",
+    "dev": "bun run build && bun src/index.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "elysia": "^1.4.30"
+  }
+}
